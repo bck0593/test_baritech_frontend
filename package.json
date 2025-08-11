@@ -1,4 +1,6 @@
 {
+  "name": "frontend",
+  "private": true,
   "scripts": {
     "build": "next build",
     "start": "next start -p $PORT"
