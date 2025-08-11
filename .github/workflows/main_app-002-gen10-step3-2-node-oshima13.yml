@@ -1,4 +1,4 @@
-name: Deploy Next.js to Azure App Service
+name: Deploy Next.js to App Service (safe)
 
 on:
   push:
@@ -10,11 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: ls -la  # ← ルートを確認（package.json, server.js, next.config.js が見えるはず）
 
-      - name: Deploy to Azure Web App (ZIP/OneDeploy)
+      # Azureにログイン（停止/起動のため）
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # 衝突回避：停止→少し待つ
+      - name: Stop app
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az webapp stop -g <RG名> -n app-002-gen10-step3-2-node-oshima13
+            sleep 12
+
+      # ZIP Deploy（Oryxで npm i / next build させる）
+      - name: Deploy to Azure Web App (OneDeploy)
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-002-gen10-step3-2-node-oshima13'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_190E84D8AB6C493BAA95A424A51EFF6C }}
-          package: .   # ← ルートをZIPデプロイ
+          package: .   # ルートに package.json がある前提
+
+      # 起動
+      - name: Start app
+        uses: azure/CLI@v2
+        with:
+          inlineScript: az webapp start -g <RG名> -n app-002-gen10-step3-2-node-oshima13
