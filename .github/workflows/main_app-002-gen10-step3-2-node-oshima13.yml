@@ -1,4 +1,4 @@
-name: Deploy Next.js to App Service (safe)
+name: Deploy Next.js to Azure App Service
 
 on:
   push:
@@ -10,10 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sleep 12   # Kudu再起動直後の衝突回避(簡易)
+      - run: ls -la  # ← ルートを確認（package.json, server.js, next.config.js が見えるはず）
 
-      - uses: azure/webapps-deploy@v3
+      - name: Deploy to Azure Web App (ZIP/OneDeploy)
+        uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-002-gen10-step3-2-node-oshima13'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_190E84D8AB6C493BAA95A424A51EFF6C }}
-          package: .
+          package: .   # ← ルートをZIPデプロイ
