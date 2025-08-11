@@ -1,22 +1,53 @@
 name: Deploy Next.js to App Service
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend   # ★ package.json の場所
+
     steps:
       - uses: actions/checkout@v4
 
-      # Kudu再起動直後との衝突回避（簡易）
-      - run: sleep 15
-
-      - name: Deploy to Azure Web App (ZIP/OneDeploy)
-        uses: azure/webapps-deploy@v3
+      - name: Use Node 20
+        uses: actions/setup-node@v4
         with:
-          app-name: 'app-002-gen10-step3-2-node-oshima13'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_190E84D8AB6C493BAA95A424A51EFF6C }}
-          package: .   # リポのルート（ここに package.json がある前提）
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ./frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+
+      # スタンドアロン成果物を zip 化
+      - name: Prepare artifact
+        run: |
+          mkdir -p out_zip
+          cp -r .next/standalone/* out_zip/
+          cp -r .next/static out_zip/.next/
+          cp -r public out_zip/public || true
+          # (必要なら env や設定ファイルもここでコピー)
+
+      - name: Zip artifact
+        run: (cd out_zip && zip -r ../app.zip .)
+
+      # 409 回避のためリトライ付きで配布
+      - name: Deploy artifact
+        uses: Wandalen/wretry.action@v1.3.0
+        with:
+          attempt_limit: 5
+          attempt_delay: 25000
+          action: azure/webapps-deploy@v3
+          with: |
+            app-name: app-002-gen10-step3-2-node-oshima13
+            publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_190E84D8AB6C493BAA95A424A51EFF6C }}
+            package: ./frontend/app.zip
